@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { MessageContent } from "@/types/openai";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
+import { rendererRegistry } from "./RendererRegistry";
 
 interface ContentRendererProps {
   content: MessageContent;
@@ -28,6 +29,14 @@ interface ContentRendererProps {
 function TextContentRenderer({ content, className, isStreaming }: ContentRendererProps) {
   if (content.type !== "text" && content.type !== "input_text" && content.type !== "output_text") return null;
 
+  // Try to get a custom renderer from the registry first
+  const customRenderer = rendererRegistry.getRenderer(content);
+  if (customRenderer) {
+    console.log('[TextContentRenderer] Using custom renderer:', customRenderer.id);
+    return customRenderer.render(content, { className, isStreaming });
+  }
+
+  // Fallback to default markdown rendering
   const text = content.text;
 
   return (

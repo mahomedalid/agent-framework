@@ -147,6 +147,14 @@ export type {
   ResponseInputFileParam,
 } from "./agent-framework";
 
+// Re-export Renderer types
+export type {
+  MessageRenderer,
+  RendererProps,
+  RendererConfig,
+  RenderersConfig,
+} from "./renderer";
+
 export interface HealthResponse {
   status: "healthy";
   agents_dir?: string;
