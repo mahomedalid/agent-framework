@@ -251,15 +251,134 @@ function VisualizationTypeSelector({
 }
 
 /**
+ * Analyze data and determine the best default visualization type
+ */
+function determineDefaultVisualizationType(data: TabularData): string {
+  if (!data.data || data.data.length === 0 || data.headers.length === 0) {
+    return 'table';
+  }
+
+  const numColumns = data.headers.length;
+  const numRows = data.data.length;
+  
+  // Helper function to check if a column contains mostly numeric data
+  const isNumericColumn = (columnName: string): boolean => {
+    const values = data.data.map(row => row[columnName]).filter(val => val != null);
+    if (values.length === 0) return false;
+    
+    const numericCount = values.filter(val => {
+      const num = parseFloat(String(val));
+      return !isNaN(num) && isFinite(num);
+    }).length;
+    
+    return numericCount / values.length >= 0.8; // 80% or more are numeric
+  };
+
+  // Helper function to check if a column contains date/time-like data
+  const isDateTimeColumn = (columnName: string): boolean => {
+    const values = data.data.map(row => row[columnName]).filter(val => val != null);
+    if (values.length === 0) return false;
+    
+    const dateCount = values.filter(val => {
+      const str = String(val).toLowerCase();
+      // Check for common date patterns
+      return str.match(/\d{4}[-\/]\d{1,2}[-\/]\d{1,2}/) || // YYYY-MM-DD or YYYY/MM/DD
+             str.match(/\d{1,2}[-\/]\d{1,2}[-\/]\d{4}/) || // MM-DD-YYYY or MM/DD/YYYY
+             str.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/) || // ISO date
+             str.includes('jan') || str.includes('feb') || str.includes('mar') ||
+             str.includes('apr') || str.includes('may') || str.includes('jun') ||
+             str.includes('jul') || str.includes('aug') || str.includes('sep') ||
+             str.includes('oct') || str.includes('nov') || str.includes('dec') ||
+             !isNaN(Date.parse(str));
+    }).length;
+    
+    return dateCount / values.length >= 0.6; // 60% or more look like dates
+  };
+
+  // Helper function to check if we have categorical vs continuous data
+  const getCategoricalColumns = (): string[] => {
+    return data.headers.filter(header => {
+      if (isNumericColumn(header) || isDateTimeColumn(header)) return false;
+      
+      const uniqueValues = new Set(data.data.map(row => row[header]));
+      const totalValues = data.data.length;
+      
+      // If unique values are less than 50% of total and we have reasonable number of categories
+      return uniqueValues.size < totalValues * 0.5 && uniqueValues.size <= 20;
+    });
+  };
+
+  const numericColumns = data.headers.filter(isNumericColumn);
+  const dateTimeColumns = data.headers.filter(isDateTimeColumn);
+  const categoricalColumns = getCategoricalColumns();
+
+  // Decision logic based on data characteristics:
+
+  // 1. Heatmap: Best for 3+ columns with 2 categorical dimensions and 1 numeric value
+  if (numColumns >= 3 && categoricalColumns.length >= 2 && numericColumns.length >= 1) {
+    const xCategories = new Set(data.data.map(row => row[categoricalColumns[0]])).size;
+    const yCategories = new Set(data.data.map(row => row[categoricalColumns[1]])).size;
+    
+    // Good heatmap candidates: reasonable matrix size and not too sparse
+    if (xCategories <= 15 && yCategories <= 15 && xCategories * yCategories <= numRows * 2) {
+      return 'heatmap';
+    }
+  }
+
+  // 2. Line Chart: Best for time series data or sequential numeric data
+  if (numColumns >= 2 && numericColumns.length >= 1) {
+    // Check if first column looks like time/sequence
+    const firstCol = data.headers[0];
+    if (isDateTimeColumn(firstCol)) {
+      return 'line';
+    }
+    
+    // Check if first column is sequential numbers (like index, year, etc.)
+    if (isNumericColumn(firstCol)) {
+      const values = data.data.map(row => parseFloat(row[firstCol])).filter(v => !isNaN(v)).sort((a, b) => a - b);
+      const isSequential = values.every((val, idx) => idx === 0 || val >= values[idx - 1]);
+      
+      if (isSequential && values.length === data.data.length) {
+        return 'line';
+      }
+    }
+  }
+
+  // 3. Bar Chart: Best for categorical data with numeric values
+  if (numColumns >= 2 && categoricalColumns.length >= 1 && numericColumns.length >= 1) {
+    const categories = new Set(data.data.map(row => row[categoricalColumns[0]])).size;
+    
+    // Good for moderate number of categories
+    if (categories <= 20 && categories >= 2) {
+      return 'bar';
+    }
+  }
+
+  // 4. Line Chart as secondary choice: Any two numeric columns
+  if (numColumns >= 2 && numericColumns.length >= 2) {
+    return 'line';
+  }
+
+  // 5. Bar Chart as fallback: At least one categorical and one numeric
+  if (categoricalColumns.length >= 1 && numericColumns.length >= 1) {
+    return 'bar';
+  }
+
+  // 6. Default fallback: Table for everything else
+  return 'table';
+}
+
+/**
  * Main simple visualization component
  * 
  * This is the "fromtherepo" version - simple and working with interactive type switching
  */
 export function TabularDataVisualization({ data, className }: TabularDataVisualizationProps) {
-  // State for current visualization type, defaulting to the provided type or 'table'
-  const [currentVisualizationType, setCurrentVisualizationType] = useState<string>(
-    data.visualization_type || 'table'
-  );
+  // Determine default visualization type if not provided
+  const defaultVizType = data.visualization_type || determineDefaultVisualizationType(data);
+  
+  // State for current visualization type, using the determined default
+  const [currentVisualizationType, setCurrentVisualizationType] = useState<string>(defaultVizType);
 
   if (!data.data || data.data.length === 0) {
     return (
@@ -297,11 +416,13 @@ export function TabularDataVisualization({ data, className }: TabularDataVisuali
       
       {renderContent()}
       
-      {data.visualization_type && (
-        <div className="text-xs text-gray-500 mt-2">
-          Original Type: {data.visualization_type} | Current: {currentVisualizationType}
-        </div>
-      )}
+      <div className="text-xs text-gray-500 mt-2">
+        {data.visualization_type ? (
+          <>Original Type: {data.visualization_type} | Current: {currentVisualizationType}</>
+        ) : (
+          <>Auto-detected: {defaultVizType} | Current: {currentVisualizationType}</>
+        )}
+      </div>
     </div>
   );
 }
