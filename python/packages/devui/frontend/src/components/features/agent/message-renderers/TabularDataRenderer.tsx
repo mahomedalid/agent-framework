@@ -6,7 +6,8 @@
  */
 
 import React from 'react';
-import type { MessageRenderer, MessageContent, RendererProps } from '@/types/renderer';
+import type { MessageRenderer, RendererProps } from '@/types/renderer';
+import type { MessageContent } from '@/types/openai';
 import { TabularDataVisualization } from '@/components/ui/tabular-data-visualization';
 import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 

@@ -3,7 +3,7 @@
  * (External plugin system removed - back to checkpoint)
  */
 
-import type { MessageRenderer, RendererConfig, RenderersConfig } from "@/types/renderer";
+import type { MessageRenderer, RenderersConfig } from "@/types/renderer";
 import type { MessageContent } from "@/types/openai";
 
 class RendererRegistry {

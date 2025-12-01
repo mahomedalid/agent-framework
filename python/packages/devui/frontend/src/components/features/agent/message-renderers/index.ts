@@ -18,6 +18,6 @@ import { TabularDataRenderer } from './TabularDataRenderer';
 rendererRegistry.register(TabularDataRenderer);
 
 // Enable debug logging in development
-if (import.meta.env.DEV) {
+if (typeof window !== 'undefined') {
   rendererRegistry.setDebug(true);
 }
