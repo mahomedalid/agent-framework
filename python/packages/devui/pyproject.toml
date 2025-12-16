@@ -1,15 +1,15 @@
 [project]
-name = "agent-framework-devui"
-description = "Debug UI for Microsoft Agent Framework with OpenAI-compatible API server."
-authors = [{ name = "Microsoft", email = "af-support@microsoft.com"}]
+name = "agent-framework-devui-extended"
+description = "Debug UI for Microsoft Agent Framework with OpenAI-compatible API server with Visualizations."
+authors = [{ name = "Maho Pacheco", email = "mapach@microsoft.com"}]
 readme = "README.md"
 requires-python = ">=3.10"
-version = "1.0.0b251211"
+version = "1.0.0b25121604"
 license-files = ["LICENSE"]
-urls.homepage = "https://github.com/microsoft/agent-framework"
-urls.source = "https://github.com/microsoft/agent-framework/tree/main/python"
-urls.release_notes = "https://github.com/microsoft/agent-framework/releases?q=tag%3Apython-1&expanded=true"
-urls.issues = "https://github.com/microsoft/agent-framework/issues"
+urls.homepage = "https://github.com/mahomedalid/agent-framework"
+urls.source = "https://github.com/mahomedalid/agent-framework/tree/main/python"
+urls.release_notes = "https://github.com/mahomedalid/agent-framework/releases?q=tag%3Apython-1&expanded=true"
+urls.issues = "https://github.com/mahomedalid/agent-framework/issues"
 classifiers = [
   "License :: OSI Approved :: MIT License",
   "Development Status :: 4 - Beta",
@@ -34,7 +34,7 @@ dev = ["pytest>=7.0.0", "watchdog>=3.0.0"]
 all = ["pytest>=7.0.0", "watchdog>=3.0.0"]
 
 [project.scripts]
-devui = "agent_framework_devui:main"
+devui_extended = "agent_framework_devui_extended:main"
 
 [tool.uv]
 prerelease = "if-necessary-or-explicit"
@@ -45,7 +45,7 @@ environments = [
 ]
 
 [tool.uv-dynamic-versioning]
-fallback-version = "0.0.0"
+fallback-version = "1.0.0b25121604"
 
 [tool.pytest.ini_options]
 testpaths = 'tests'
@@ -70,7 +70,7 @@ extends = "../../pyproject.toml"
 [tool.mypy]
 plugins = ['pydantic.mypy']
 strict = true
-python_version = "3.10"
+python_version = "1.0.0b25121604"
 ignore_missing_imports = true
 disallow_untyped_defs = true
 no_implicit_optional = true

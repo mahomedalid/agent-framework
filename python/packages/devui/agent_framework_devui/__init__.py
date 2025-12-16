@@ -132,6 +132,8 @@ def serve(
         logger.warning("⚠️  This is INSECURE - anyone on your network can access your agents")
         logger.warning("💡 For network exposure, add --auth flag: devui --host 0.0.0.0 --auth")
 
+    logger.warning("✨ Customized version for visualizations 📊 - fork")
+
     # Handle authentication configuration
     if auth_enabled:
         import os

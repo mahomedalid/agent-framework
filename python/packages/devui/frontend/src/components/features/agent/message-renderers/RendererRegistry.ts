@@ -21,9 +21,7 @@ class RendererRegistry {
    * Register a renderer
    */
   register(renderer: MessageRenderer): void {
-    if (this.config.global.debug || true) {
-      console.log(`[RendererRegistry] Registering renderer: ${renderer.id} (${renderer.name})`);
-    }
+    console.log(`[RendererRegistry] 📝 REGISTERING renderer: ${renderer.id} (${renderer.name}) with priority ${renderer.priority}`);
 
     this.renderers.set(renderer.id, renderer);
     
@@ -34,7 +32,14 @@ class RendererRegistry {
         config: {},
         priority: renderer.priority
       };
+      console.log(`[RendererRegistry] 🆕 Created default config for renderer: ${renderer.id}`);
+    } else {
+      console.log(`[RendererRegistry] 🔧 Using existing config for renderer: ${renderer.id}`);
     }
+    
+    const totalRenderers = this.renderers.size;
+    console.log(`[RendererRegistry] 📊 Total registered renderers: ${totalRenderers}`);
+    console.log(`[RendererRegistry] 📋 All renderers:`, Array.from(this.renderers.keys()));
   }
 
   /**
@@ -53,32 +58,36 @@ class RendererRegistry {
    * Get the best renderer for given content
    */
   getRenderer(content: MessageContent): MessageRenderer | null {
+    console.group(`[RendererRegistry] 🔍 Finding renderer for content type: ${content.type}`);
+    console.log(`[RendererRegistry] 📝 Content preview:`, content.type === 'text' ? content.text?.substring(0, 100) + '...' : content);
+    
     const availableRenderers = Array.from(this.renderers.values())
       .filter(renderer => {
         const config = this.config.renderers[renderer.id];
-        return config?.enabled !== false;
+        const isEnabled = config?.enabled !== false;
+        console.log(`[RendererRegistry] 🔧 Renderer ${renderer.id}: enabled=${isEnabled}, priority=${renderer.priority}`);
+        return isEnabled;
       })
       .sort((a, b) => b.priority - a.priority);
 
-    // console log the available ones
+    console.log(`[RendererRegistry] 📋 Available renderers (${availableRenderers.length}):`, 
+      availableRenderers.map(r => `${r.id}(${r.priority})`).join(', '));
 
     // Try to find a suitable renderer
     for (const renderer of availableRenderers) {
       try {
-        if (this.config.global.debug || true) {
-          console.log(`[RendererRegistry] Trying renderer: ${renderer.id} (${renderer.name})`);
-        }
+        console.log(`[RendererRegistry] 🧪 Testing renderer: ${renderer.id} (${renderer.name}) with priority ${renderer.priority}`);
 
-        if (renderer.canRender(content)) {
-          if (this.config.global.debug || true) {
-            console.log(`[RendererRegistry] Selected renderer: ${renderer.id} for content type: ${content.type}`);
-          }
+        const canRender = renderer.canRender(content);
+        console.log(`[RendererRegistry] 🎯 Renderer ${renderer.id} canRender result:`, canRender);
+        
+        if (canRender) {
+          console.log(`[RendererRegistry] ✅ SELECTED renderer: ${renderer.id} for content type: ${content.type}`);
+          console.groupEnd();
           return renderer;
         }
       } catch (error) {
-        if (this.config.global.debug || true) {
-          console.warn(`[RendererRegistry] Error checking renderer ${renderer.id}:`, error);
-        }
+        console.error(`[RendererRegistry] ❌ Error checking renderer ${renderer.id}:`, error);
       }
     }
 
@@ -86,17 +95,14 @@ class RendererRegistry {
     if (this.config.global.fallback) {
       const fallback = this.renderers.get(this.config.global.fallback);
       if (fallback) {
-        if (this.config.global.debug) {
-          console.log(`[RendererRegistry] Using fallback renderer: ${this.config.global.fallback}`);
-        }
+        console.log(`[RendererRegistry] 🔄 Using fallback renderer: ${this.config.global.fallback}`);
+        console.groupEnd();
         return fallback;
       }
     }
 
-    if (this.config.global.debug || true) {
-      console.warn(`[RendererRegistry] No renderer found for content:`, content);
-    }
-
+    console.warn(`[RendererRegistry] ⚠️ No renderer found for content:`, content);
+    console.groupEnd();
     return null;
   }
 

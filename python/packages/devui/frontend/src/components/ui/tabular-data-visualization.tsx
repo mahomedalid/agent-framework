@@ -309,7 +309,6 @@ function determineDefaultVisualizationType(data: TabularData): string {
   };
 
   const numericColumns = data.headers.filter(isNumericColumn);
-  const dateTimeColumns = data.headers.filter(isDateTimeColumn);
   const categoricalColumns = getCategoricalColumns();
 
   // Decision logic based on data characteristics:

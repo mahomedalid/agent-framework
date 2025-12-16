@@ -36,6 +36,8 @@ function TextContentRenderer({ content, className, isStreaming }: ContentRendere
     return customRenderer.render(content, { className, isStreaming });
   }
 
+  console.log('[TextContentRenderer] No custom renderer found, using default markdown rendering.');
+
   // Fallback to default markdown rendering
   const text = content.text;
 
