@@ -2,6 +2,8 @@
 
 A lightweight, standalone sample app interface for running entities (agents/workflows) in the Microsoft Agent Framework supporting **directory-based discovery**, **in-memory entity registration**, and **sample entity gallery**.
 
+**This is a fork with enhanced visualizations** 📊 - install as `agent-framework-devui-extended` but use with the original import patterns or run it as devui_extended
+
 > [!IMPORTANT]
 > DevUI is a **sample app** to help you get started with the Agent Framework. It is **not** intended for production use. For production, or for features beyond what is provided in this sample app, it is recommended that you build your own custom interface and API server using the Agent Framework SDK.
 
@@ -10,15 +12,16 @@ A lightweight, standalone sample app interface for running entities (agents/work
 ## Quick Start
 
 ```bash
-# Install
-pip install agent-framework-devui --pre
+# Install the visualization-enhanced version
+pip install agent-framework-devui-visualizations --pre
 ```
 
-You can also launch it programmatically
+You can also launch it programmatically using the **original import pattern**:
 
 ```python
 from agent_framework import ChatAgent
 from agent_framework.openai import OpenAIChatClient
+# Import works exactly as before - no changes needed!
 from agent_framework.devui import serve
 
 def get_weather(location: str) -> str:
@@ -32,7 +35,7 @@ agent = ChatAgent(
     tools=[get_weather]
 )
 
-# Launch debug UI - that's it!
+# Launch debug UI with enhanced visualizations - that's it!
 serve(entities=[agent], auto_open=True)
 # → Opens browser to http://localhost:8080
 ```
