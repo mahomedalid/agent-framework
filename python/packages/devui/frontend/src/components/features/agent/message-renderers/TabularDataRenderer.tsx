@@ -17,8 +17,14 @@ function hasTabularData(text: string): boolean {
   const patterns = [
     /```tabular_data_json/i,
     /\|.*\|.*\|/, // Markdown table pattern
+    /^\s*\|.*\|\s*$/m, // Single markdown table row
+    /^\s*[^\n]*\|[^\n]*\|[^\n]*$/m, // Multiple pipe separators in a line
     /^\s*\w+\s*[,;]\s*\w+/m, // CSV-like pattern
-    /visualization_type\s*:/i
+    /visualization_type\s*:/i,
+    /pivot.*table/i, // Pivot table pattern
+    /cross.*tab/i, // Cross-tabulation pattern
+    /Equipment.*Month/i, // Equipment/Month pattern from your data
+    /\d{4}-\d{2}/g, // Date patterns like 2024-09
   ];
 
   return patterns.some(pattern => pattern.test(text));
@@ -35,6 +41,20 @@ function extractTabularData(text: string): { content: string; tabularData: Tabul
   const tabularData: TabularData[] = [];
   let cleanedContent = text;
 
+  // Helper function to convert string values to appropriate types
+  const convertValue = (value: string): any => {
+    const trimmed = value.trim();
+    if (trimmed === '' || trimmed === '-') return null;
+    
+    // Try to parse as number
+    if (/^\d+$/.test(trimmed) || /^\d+\.\d+$/.test(trimmed)) {
+      const num = parseFloat(trimmed);
+      return isNaN(num) ? trimmed : num;
+    }
+    
+    return trimmed;
+  };
+
   // Extract tabular_data_json blocks
   const jsonBlockPattern = /```tabular_data_json\s*\n([\s\S]*?)\n```/gi;
   let match;
@@ -44,7 +64,6 @@ function extractTabularData(text: string): { content: string; tabularData: Tabul
       const jsonData = JSON.parse(match[1]);
       if (jsonData.headers && jsonData.data) {
         tabularData.push(jsonData);
-        // Remove the JSON block from content
         cleanedContent = cleanedContent.replace(match[0], '');
       }
     } catch (error) {
@@ -52,33 +71,55 @@ function extractTabularData(text: string): { content: string; tabularData: Tabul
     }
   }
 
-  // Extract markdown tables if no JSON data found
-  if (tabularData.length === 0) {
-    const tablePattern = /\|(.+)\|\s*\n\|[-\s|:]+\|\s*\n((?:\|.+\|\s*\n?)+)/g;
-    while ((match = tablePattern.exec(text)) !== null) {
-      try {
-        const headers = match[1].split('|').map(h => h.trim()).filter(h => h);
-        const rows = match[2].trim().split('\n');
-        const data = rows.map(row => {
-          const values = row.split('|').map(v => v.trim()).filter(v => v);
-          const rowData: Record<string, any> = {};
-          headers.forEach((header, index) => {
-            rowData[header] = values[index] || '';
-          });
-          return rowData;
+  // Extract markdown tables
+  const tablePattern = /\|(.+)\|\s*\n\|[-\s|:]+\|\s*\n((?:\|.+\|\s*\n?)+)/g;
+  while ((match = tablePattern.exec(text)) !== null) {
+    try {
+      console.log('📋 Found markdown table match:', match[0]);
+      const headers = match[1].split('|').map(h => h.trim()).filter(h => h);
+      console.log('📝 Parsed headers:', headers);
+      
+      const rows = match[2].trim().split('\n');
+      console.log('📄 Raw rows:', rows);
+      
+      const data = rows.map(row => {
+        const values = row.split('|').map(v => v.trim()).filter(v => v);
+        console.log('📊 Row values:', values);
+        const rowData: Record<string, any> = {};
+        headers.forEach((header, index) => {
+          const originalValue = values[index] || '';
+          const convertedValue = convertValue(originalValue);
+          rowData[header] = convertedValue;
+          console.log(`🔄 Converting "${originalValue}" -> ${convertedValue} (${typeof convertedValue})`);
         });
+        return rowData;
+      });
+      
+      console.log('📊 Final parsed data:', data);
 
-        tabularData.push({
-          headers,
-          data,
-          visualization_type: 'table'
-        });
-        
-        // Remove the table from content
-        cleanedContent = cleanedContent.replace(match[0], '');
-      } catch (error) {
-        console.warn('Failed to parse markdown table:', error);
-      }
+      // Simple detection: if most columns after the first are numeric, it's probably pivot data
+      const numericColumnCount = headers.slice(1).filter(header => {
+        const hasNumeric = data.some(row => typeof row[header] === 'number');
+        console.log(`📈 Column "${header}" has numeric data: ${hasNumeric}`);
+        return hasNumeric;
+      }).length;
+      
+      console.log(`🔢 Numeric columns count: ${numericColumnCount} out of ${headers.length - 1}`);
+      const vizType = numericColumnCount >= 3 ? 'pivot' : 'table';
+      console.log(`📊 Detected visualization type: ${vizType}`);
+
+      const tableData = {
+        headers,
+        data,
+        visualization_type: vizType
+      };
+      
+      console.log('✅ Final table data object:', tableData);
+      tabularData.push(tableData);
+      
+      cleanedContent = cleanedContent.replace(match[0], '');
+    } catch (error) {
+      console.warn('Failed to parse markdown table:', error);
     }
   }
 
@@ -96,7 +137,12 @@ function TabularDataRendererComponent({
   if (content.type !== 'text') return null;
 
   const text = content.text || '';
+  console.log('📄 TabularDataRenderer - Input text:', text);
+  console.log('🔍 TabularDataRenderer - hasTabularData:', hasTabularData(text));
+  
   const { content: cleanedContent, tabularData } = extractTabularData(text);
+  console.log('📊 TabularDataRenderer - Extracted tabular data:', tabularData);
+  console.log('🧹 TabularDataRenderer - Cleaned content:', cleanedContent);
 
   return (
     <div className={`break-words ${className || ""}`}>

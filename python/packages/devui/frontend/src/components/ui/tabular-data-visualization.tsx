@@ -64,12 +64,40 @@ function SimpleTable({ data }: { data: TabularData }) {
 }
 
 /**
+ * Helper function to find the first numeric column in headers
+ */
+function findFirstNumericColumn(data: TabularData, startIndex: number = 1): string {
+  // Helper function to check if a column contains mostly numeric data
+  const isNumericColumn = (columnName: string): boolean => {
+    const values = data.data.map(row => row[columnName]).filter(val => val != null);
+    if (values.length === 0) return false;
+    
+    const numericCount = values.filter(val => {
+      const num = parseFloat(String(val));
+      return !isNaN(num) && isFinite(num);
+    }).length;
+    
+    return numericCount / values.length >= 0.8; // 80% or more are numeric
+  };
+
+  // Start from startIndex and look for first numeric column
+  for (let i = startIndex; i < data.headers.length; i++) {
+    if (isNumericColumn(data.headers[i])) {
+      return data.headers[i];
+    }
+  }
+  
+  // If no numeric column found, fallback to second header or first available
+  return data.headers[startIndex] || data.headers[0];
+}
+
+/**
  * Simple bar chart - basic version
  */
 function SimpleBarChart({ data }: { data: TabularData }) {
   const chartData = data.data;
   const xKey = data.headers[0];
-  const yKey = data.headers[1];
+  const yKey = findFirstNumericColumn(data, 1); // Start looking from index 1
 
   return (
     <ResponsiveContainer width="100%" height={250}>
@@ -90,7 +118,7 @@ function SimpleBarChart({ data }: { data: TabularData }) {
 function SimpleLineChart({ data }: { data: TabularData }) {
   const chartData = data.data;
   const xKey = data.headers[0];
-  const yKey = data.headers[1];
+  const yKey = findFirstNumericColumn(data, 1); // Start looking from index 1
 
   return (
     <ResponsiveContainer width="100%" height={250}>
@@ -106,7 +134,7 @@ function SimpleLineChart({ data }: { data: TabularData }) {
 }
 
 /**
- * Simple heatmap - CSS-based implementation
+ * Improved heatmap - CSS-based implementation with better column detection
  */
 function SimpleHeatmap({ data }: { data: TabularData }) {
   // For heatmap, we need at least 3 columns: x-axis, y-axis, and value
@@ -118,9 +146,33 @@ function SimpleHeatmap({ data }: { data: TabularData }) {
     );
   }
 
-  const xKey = data.headers[0];
-  const yKey = data.headers[1];
-  const valueKey = data.headers[2];
+  // Helper to check if column is numeric
+  const isNumericColumn = (columnName: string): boolean => {
+    const values = data.data.map(row => row[columnName]).filter(val => val != null);
+    if (values.length === 0) return false;
+    
+    const numericCount = values.filter(val => {
+      const num = parseFloat(String(val));
+      return !isNaN(num) && isFinite(num);
+    }).length;
+    
+    return numericCount / values.length >= 0.8;
+  };
+
+  // Smart column selection: use first two non-numeric columns for axes, first numeric for value
+  let xKey = data.headers[0];
+  let yKey = data.headers[1];
+  let valueKey = findFirstNumericColumn(data, 0); // Find first numeric column from start
+
+  // If first column is numeric, try to find categorical columns
+  const categoricalColumns = data.headers.filter(header => !isNumericColumn(header));
+  if (categoricalColumns.length >= 2) {
+    xKey = categoricalColumns[0];
+    yKey = categoricalColumns[1];
+  } else if (categoricalColumns.length === 1) {
+    xKey = categoricalColumns[0];
+    yKey = data.headers.find(h => h !== xKey && h !== valueKey) || data.headers[1];
+  }
 
   // Get unique values for x and y axes
   const xValues = [...new Set(data.data.map(row => row[xKey]))];
@@ -214,6 +266,142 @@ function SimpleHeatmap({ data }: { data: TabularData }) {
 }
 
 /**
+ * Pivot Table Component
+ */
+function PivotTable({ data }: { data: TabularData }) {
+  if (data.headers.length < 3) {
+    return (
+      <div className="p-4 text-center text-gray-500">
+        Pivot table requires at least 3 columns (Row, Column, Value)
+      </div>
+    );
+  }
+
+  // Helper to check if column is numeric
+  const isNumericColumn = (columnName: string): boolean => {
+    const values = data.data.map(row => row[columnName]).filter(val => val != null);
+    if (values.length === 0) return false;
+    
+    const numericCount = values.filter(val => {
+      const num = parseFloat(String(val));
+      return !isNaN(num) && isFinite(num);
+    }).length;
+    
+    return numericCount / values.length >= 0.8;
+  };
+
+  // Smart column selection for pivot
+  const categoricalColumns = data.headers.filter(header => !isNumericColumn(header));
+  const numericColumns = data.headers.filter(isNumericColumn);
+
+  let rowKey = data.headers[0];
+  let colKey = data.headers[1];
+  let valueKey = numericColumns[0] || data.headers[2];
+
+  if (categoricalColumns.length >= 2) {
+    rowKey = categoricalColumns[0];
+    colKey = categoricalColumns[1];
+  } else if (categoricalColumns.length === 1) {
+    rowKey = categoricalColumns[0];
+    colKey = data.headers.find(h => h !== rowKey && h !== valueKey) || data.headers[1];
+  }
+
+  // Get unique values for rows and columns
+  const rowValues = [...new Set(data.data.map(row => String(row[rowKey] || '')))];
+  const colValues = [...new Set(data.data.map(row => String(row[colKey] || '')))];
+
+  // Create pivot data structure
+  const pivotData: { [row: string]: { [col: string]: number } } = {};
+  const totals = { rows: {} as { [key: string]: number }, cols: {} as { [key: string]: number }, grand: 0 };
+
+  // Initialize pivot structure
+  rowValues.forEach(row => {
+    pivotData[row] = {};
+    totals.rows[row] = 0;
+    colValues.forEach(col => {
+      pivotData[row][col] = 0;
+    });
+  });
+  colValues.forEach(col => {
+    totals.cols[col] = 0;
+  });
+
+  // Fill pivot data with aggregated values
+  data.data.forEach(row => {
+    const rowVal = String(row[rowKey] || '');
+    const colVal = String(row[colKey] || '');
+    const value = parseFloat(String(row[valueKey])) || 0;
+    
+    if (pivotData[rowVal] && pivotData[rowVal][colVal] !== undefined) {
+      pivotData[rowVal][colVal] += value;
+      totals.rows[rowVal] += value;
+      totals.cols[colVal] += value;
+      totals.grand += value;
+    }
+  });
+
+  return (
+    <div className="overflow-auto">
+      <div className="min-w-fit">
+        <table className="border-collapse border border-gray-300 dark:border-gray-600">
+          <thead>
+            <tr className="bg-gray-100 dark:bg-gray-800">
+              <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 font-medium sticky left-0 bg-gray-100 dark:bg-gray-800 z-10">
+                {rowKey} \\ {colKey}
+              </th>
+              {colValues.map(col => (
+                <th key={col} className="border border-gray-300 dark:border-gray-600 px-3 py-2 font-medium text-center min-w-[100px]">
+                  {col}
+                </th>
+              ))}
+              <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 font-medium text-center bg-gray-200 dark:bg-gray-700">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rowValues.map(row => (
+              <tr key={row} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 font-medium text-left sticky left-0 bg-gray-50 dark:bg-gray-900 z-10">
+                  {row}
+                </th>
+                {colValues.map(col => {
+                  const value = pivotData[row][col];
+                  return (
+                    <td key={col} className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-right">
+                      {value === 0 ? '-' : value.toLocaleString()}
+                    </td>
+                  );
+                })}
+                <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-right font-medium bg-gray-100 dark:bg-gray-800">
+                  {totals.rows[row].toLocaleString()}
+                </td>
+              </tr>
+            ))}
+            <tr className="bg-gray-200 dark:bg-gray-700 font-medium">
+              <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left sticky left-0 bg-gray-200 dark:bg-gray-700 z-10">
+                Total
+              </th>
+              {colValues.map(col => (
+                <td key={col} className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-right">
+                  {totals.cols[col].toLocaleString()}
+                </td>
+              ))}
+              <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-right font-bold">
+                {totals.grand.toLocaleString()}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="text-xs text-gray-500 mt-2">
+        Rows: {rowKey} | Columns: {colKey} | Values: {valueKey} (aggregated sum)
+      </div>
+    </div>
+  );
+}
+
+/**
  * Visualization Type Selector Component
  */
 function VisualizationTypeSelector({ 
@@ -225,6 +413,7 @@ function VisualizationTypeSelector({
 }) {
   const types = [
     { id: 'table', name: 'Table', icon: '📊' },
+    { id: 'pivot', name: 'Pivot Table', icon: '🔄' },
     { id: 'bar', name: 'Bar Chart', icon: '📊' },
     { id: 'line', name: 'Line Chart', icon: '📈' },
     { id: 'heatmap', name: 'Heatmap', icon: '🔥' }
@@ -271,7 +460,7 @@ function determineDefaultVisualizationType(data: TabularData): string {
       return !isNaN(num) && isFinite(num);
     }).length;
     
-    return numericCount / values.length >= 0.8; // 80% or more are numeric
+    return numericCount / values.length >= 0.5; // 50% or more are numeric
   };
 
   // Helper function to check if a column contains date/time-like data
@@ -313,18 +502,33 @@ function determineDefaultVisualizationType(data: TabularData): string {
 
   // Decision logic based on data characteristics:
 
-  // 1. Heatmap: Best for 3+ columns with 2 categorical dimensions and 1 numeric value
+  // 1. Pivot Table: Best for 3+ columns with 2 categorical dimensions and 1+ numeric values, good for aggregation
   if (numColumns >= 3 && categoricalColumns.length >= 2 && numericColumns.length >= 1) {
     const xCategories = new Set(data.data.map(row => row[categoricalColumns[0]])).size;
     const yCategories = new Set(data.data.map(row => row[categoricalColumns[1]])).size;
     
-    // Good heatmap candidates: reasonable matrix size and not too sparse
-    if (xCategories <= 15 && yCategories <= 15 && xCategories * yCategories <= numRows * 2) {
+    // Good pivot candidates: moderate matrix size, good for cross-tabulation
+    if (xCategories <= 20 && yCategories <= 20 && xCategories * yCategories <= numRows * 3) {
+      // Check if data seems to need aggregation (duplicates in category combinations)
+      const combinations = new Set(data.data.map(row => `${row[categoricalColumns[0]]}-${row[categoricalColumns[1]]}`));
+      if (combinations.size < numRows * 0.8) { // Some duplicates suggest aggregation is needed
+        return 'pivot';
+      }
+    }
+  }
+
+  // 2. Heatmap: Best for 3+ columns with 2 categorical dimensions and 1 numeric value (dense matrix)
+  if (numColumns >= 3 && categoricalColumns.length >= 2 && numericColumns.length >= 1) {
+    const xCategories = new Set(data.data.map(row => row[categoricalColumns[0]])).size;
+    const yCategories = new Set(data.data.map(row => row[categoricalColumns[1]])).size;
+    
+    // Good heatmap candidates: smaller, denser matrix
+    if (xCategories <= 10 && yCategories <= 10 && xCategories * yCategories >= numRows * 0.7) {
       return 'heatmap';
     }
   }
 
-  // 2. Line Chart: Best for time series data or sequential numeric data
+  // 3. Line Chart: Best for time series data or sequential numeric data
   if (numColumns >= 2 && numericColumns.length >= 1) {
     // Check if first column looks like time/sequence
     const firstCol = data.headers[0];
@@ -343,7 +547,7 @@ function determineDefaultVisualizationType(data: TabularData): string {
     }
   }
 
-  // 3. Bar Chart: Best for categorical data with numeric values
+  // 4. Bar Chart: Best for categorical data with numeric values
   if (numColumns >= 2 && categoricalColumns.length >= 1 && numericColumns.length >= 1) {
     const categories = new Set(data.data.map(row => row[categoricalColumns[0]])).size;
     
@@ -353,17 +557,17 @@ function determineDefaultVisualizationType(data: TabularData): string {
     }
   }
 
-  // 4. Line Chart as secondary choice: Any two numeric columns
+  // 5. Line Chart as secondary choice: Any two numeric columns
   if (numColumns >= 2 && numericColumns.length >= 2) {
     return 'line';
   }
 
-  // 5. Bar Chart as fallback: At least one categorical and one numeric
+  // 6. Bar Chart as fallback: At least one categorical and one numeric
   if (categoricalColumns.length >= 1 && numericColumns.length >= 1) {
     return 'bar';
   }
 
-  // 6. Default fallback: Table for everything else
+  // 7. Default fallback: Table for everything else
   return 'table';
 }
 
@@ -397,6 +601,8 @@ export function TabularDataVisualization({ data, className }: TabularDataVisuali
       return <SimpleLineChart data={data} />;
     } else if (vizType.includes('heatmap')) {
       return <SimpleHeatmap data={data} />;
+    } else if (vizType.includes('pivot')) {
+      return <PivotTable data={data} />;
     } else {
       return <SimpleTable data={data} />;
     }

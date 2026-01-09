@@ -4,7 +4,7 @@ description = "Debug UI for Microsoft Agent Framework with OpenAI-compatible API
 authors = [{ name = "Maho Pacheco", email = "mapach@microsoft.com"}]
 readme = "README.md"
 requires-python = ">=3.10"
-version = "1.0.0b260107"
+version = "1.0.0b26010904"
 license-files = ["LICENSE"]
 urls.homepage = "https://github.com/mahomedalid/agent-framework"
 urls.source = "https://github.com/mahomedalid/agent-framework/tree/main/python"
@@ -45,7 +45,7 @@ environments = [
 ]
 
 [tool.uv-dynamic-versioning]
-fallback-version = "1.0.0b26010901"
+fallback-version = "1.0.0b26010904"
 
 [tool.pytest.ini_options]
 testpaths = 'tests'
@@ -70,7 +70,7 @@ extends = "../../pyproject.toml"
 [tool.mypy]
 plugins = ['pydantic.mypy']
 strict = true
-python_version = "1.0.0b26010901"
+python_version = "1.0.0b26010904"
 ignore_missing_imports = true
 disallow_untyped_defs = true
 no_implicit_optional = true
